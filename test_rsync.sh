@@ -1,7 +1,21 @@
 #!/bin/bash
 
 function backup {
-    rsync -r -H -l -g -o -t -D -p --del $1 $2
+    local src
+    local tgt
+    local prev
+
+    src="$1"
+    tgt="$2"
+    prev="${3:-}"
+
+    local link_param
+
+    if [ -z "$prev" ]; then
+        rsync -r -h -H -l -g -o -t -D -p --del "$src" "$tgt"
+    else
+        rsync -r -h -H -l -g -o -t -D -p --del --link-dest="$prev" "$src" "$tgt"
+    fi
 }
 
 function test_backup_is_recursive {
@@ -83,6 +97,28 @@ function test_permissions {
     diff <(stat -c "%a" src/f1) <(stat -c "%a" tgt/src/f1)
 }
 
+function test_incremental_backup_inodes_kept {
+    dd if=/dev/zero of=src/f1 bs=1024 count=10
+    backup src tgt
+    backup src tgt2 "$PWD/tgt"
+
+    ls -i tgt/src/f1
+    ls -i tgt2/src/f1
+    [ "$(ls -i tgt/src/f1 | cut -d" " -f1)" == "$(ls -i tgt2/src/f1 | cut -d" " -f1)" ]
+}
+
+function test_incremental_backup_changed_permissions {
+    dd if=/dev/zero of=src/f1 bs=1024 count=10
+    chmod 0500 src/f1
+    backup src tgt
+    chmod 0777 src/f1
+    backup src tgt2 tgt
+
+    ls -i tgt/src/f1
+    ls -i tgt2/src/f1
+    [ "$(ls -i tgt/src/f1 | cut -d" " -f1)" != "$(ls -i tgt2/src/f1 | cut -d" " -f1)" ]
+}
+
 function run_test {
     TMPFILE=$(mktemp)
     TMPDIR=$(mktemp -d)
@@ -93,6 +129,7 @@ function run_test {
         cd $TMPDIR
         mkdir src
         mkdir tgt
+        mkdir tgt2
         $1
     ) > $TMPFILE 2>&1
     RESULT="$?"

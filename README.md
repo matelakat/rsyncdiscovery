@@ -4,7 +4,12 @@ A test script to find out rsync parameters for backup.
 ## Conclusion
 To copy `src` to `tgt`:
 
-    rsync -r -H -l -g -o -t -D -p --del src tgt
+    rsync -r -h -H -l -g -o -t -D -p --del [--link-dest=fullpath] src tgt
+
+The optional `--link-dest` 's `fullpath` parameter is a full path to a previous
+backup. In this case an incremental backup is performed, already existing
+files will be hardlinks. If a relative path is specified, it will be relative
+to `tgt`.
 
 And you will end up with
 
@@ -34,6 +39,7 @@ would need to know, which ones to use. For this, I have some expectations:
   6. Preserve permissions
   7. Modification times are preserved
   8. Special files reserved
+  9. Incremental backups are possible
 
 And of course, a test-driven approach will be used. Bash does not prevent you
 from writing tests, so go ahead.
